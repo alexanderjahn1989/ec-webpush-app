@@ -1,0 +1,1 @@
+self.importScripts("https://emartech.github.io/engagement-cloud-sdk/latest/ec-service-worker.js")

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Engagement Cloud Web Push Test</title>
+
+  <script src="engagement-cloud-sdk-loader.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 40px;
+      line-height: 1.5;
+    }
+
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .row {
+      margin-bottom: 16px;
+    }
+
+    button {
+      margin-right: 10px;
+      margin-bottom: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+    }
+
+    input {
+      width: 100%;
+      max-width: 420px;
+      padding: 10px;
+      margin-top: 6px;
+    }
+
+    #status {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 8px;
+      background: #f6f6f6;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Engagement Cloud Web Push</h1>
+
+    <div class="card">
+      <div class="row">
+        <label for="contactId"><strong>Contact Identifier</strong></label><br />
+        <input id="contactId" type="text" value="alexander.jahn01@sap.com" />
+      </div>
+
+      <div class="row">
+        <button id="initBtn">Enable SDK</button>
+        <button id="linkBtn">Link Contact</button>
+        <button id="subscribeBtn">Subscribe to Push</button>
+        <button id="unsubscribeBtn">Unsubscribe from Push</button>
+        <button id="stateBtn">Check State</button>
+	    <button id="sendCustomEvent">Send Custom Event</button>
+      </div>
+
+      <div id="status">Ready.</div>
+    </div>
+  </div>
+
+  <script>
+    const APPLICATION_CODE = "EMSBC-5053F";
+    const VAPID_PUBLIC_KEY = "BNkQa_BdS4pLqRwGO4a8kx9D_7_d-S4aoUEuqnUGGudgXBxaU1jKUXfnhSw7QveJ76peHGm_-3h0naBQXjOt6JE";
+    const SERVICE_WORKER_PATH = "/service-worker.js";
+    const SERVICE_WORKER_SCOPE = "/";
+	  
+	  window.EngagementCloud.setup.setOnContactLinkingFailedCallback(async () => {
+    // Prompt user to log in and retrieve their contact identifier
+    const loggedInUser = await showLoginDialogAndAwaitResult();
+    if (!loggedInUser) return null;
+    return { contactFieldValue: loggedInUser.userId };
+});
+
+    function setStatus(message) {
+      document.getElementById("status").textContent = message;
+    }
+
+    function getContactIdentifier() {
+      return document.getElementById("contactId").value.trim();
+    }
+
+    async function ensureSdkLoaded() {
+      if (!window.EngagementCloud) {
+        throw new Error("window.EngagementCloud is undefined. Check /engagement-cloud-sdk-loader.js");
+      }
+      await window.EngagementCloud.loaded;
+    }
+
+    function buildConfig() {
+      return {
+        applicationCode: APPLICATION_CODE,
+        serviceWorkerOptions: {
+          applicationServerKey: VAPID_PUBLIC_KEY,
+          serviceWorkerPath: SERVICE_WORKER_PATH,
+          serviceWorkerScope: SERVICE_WORKER_SCOPE
+        }
+      };
+    }
+	  
+	console.log(JSON.stringify(buildConfig(), null, 2));
+
+    async function enableSdk() {
+      await ensureSdkLoaded();
+
+      const config = buildConfig();
+
+      await window.EngagementCloud.setup.enable(
+        config,
+        async () => {
+          const contactId = getContactIdentifier();
+          return contactId ? { contactFieldValue: contactId } : null;
+        }
+      );
+
+      const enabled = await window.EngagementCloud.setup.isEnabled();
+      const appCode = await window.EngagementCloud.config.getApplicationCode();
+
+      setStatus(
+        "SDK enabled successfully.\n" +
+        "Enabled state: " + enabled + "\n" +
+        "Application code: " + appCode
+      );
+    }
+
+    async function linkContact() {
+      await ensureSdkLoaded();
+
+      const contactId = getContactIdentifier();
+      if (!contactId) {
+        throw new Error("No contact identifier provided.");
+      }
+
+      await window.EngagementCloud.contact.link(contactId);
+
+      setStatus("Contact linked successfully: " + contactId);
+    }
+
+    async function subscribePush() {
+      await ensureSdkLoaded();
+
+      const nativePermission = await Notification.requestPermission();
+      if (nativePermission !== "granted") {
+        setStatus("Notification permission not granted: " + nativePermission);
+        return;
+      }
+
+      await window.EngagementCloud.push.subscribe();
+
+      const isSubscribed = await window.EngagementCloud.push.isSubscribed();
+      const permissionState = await window.EngagementCloud.push.getPermissionState();
+      const registrations = await navigator.serviceWorker.getRegistrations();
+
+      setStatus(
+        "Push subscription attempted.\n" +
+        "Notification.permission: " + Notification.permission + "\n" +
+        "isSubscribed: " + isSubscribed + "\n" +
+        "permissionState: " + permissionState + "\n" +
+        "serviceWorkerRegistrations: " + registrations.length
+      );
+    }
+
+    async function unsubscribePush() {
+      await ensureSdkLoaded();
+
+      await window.EngagementCloud.push.unsubscribe();
+
+      const isSubscribed = await window.EngagementCloud.push.isSubscribed();
+      const permissionState = await window.EngagementCloud.push.getPermissionState();
+      const registrations = await navigator.serviceWorker.getRegistrations();
+
+      setStatus(
+        "Push subscription removed.\n" +
+        "isSubscribed: " + isSubscribed + "\n" +
+        "permissionState: " + permissionState + "\n" +
+        "serviceWorkerRegistrations: " + registrations.length
+      );
+    }
+
+    async function checkState() {
+      const lines = [];
+
+      lines.push("window.EngagementCloud: " + (window.EngagementCloud ? "available" : "undefined"));
+      lines.push("window.EngagementCloud.loaded: " + (window.EngagementCloud?.loaded ? "available" : "undefined"));
+      lines.push("Notification.permission: " + Notification.permission);
+
+      if (window.EngagementCloud) {
+        try {
+          await window.EngagementCloud.loaded;
+
+          lines.push("setup.enable: " + typeof window.EngagementCloud.setup?.enable);
+          lines.push("setup.isEnabled: " + typeof window.EngagementCloud.setup?.isEnabled);
+          lines.push("config.getApplicationCode: " + typeof window.EngagementCloud.config?.getApplicationCode);
+          lines.push("push.subscribe: " + typeof window.EngagementCloud.push?.subscribe);
+          lines.push("push.unsubscribe: " + typeof window.EngagementCloud.push?.unsubscribe);
+          lines.push("push.isSubscribed: " + typeof window.EngagementCloud.push?.isSubscribed);
+          lines.push("push.getPermissionState: " + typeof window.EngagementCloud.push?.getPermissionState);
+
+          let enabled = null;
+          let appCode = null;
+          let sdkState = null;
+          let permissionState = null;
+          let isSubscribed = null;
+          let registrations = [];
+
+          try { enabled = await window.EngagementCloud.setup.isEnabled(); } catch (e) {}
+          try { appCode = await window.EngagementCloud.config.getApplicationCode(); } catch (e) {}
+          try { sdkState = await window.EngagementCloud.config.getCurrentSdkState(); } catch (e) {}
+          try { permissionState = await window.EngagementCloud.push.getPermissionState(); } catch (e) {}
+          try { isSubscribed = await window.EngagementCloud.push.isSubscribed(); } catch (e) {}
+          try { registrations = await navigator.serviceWorker.getRegistrations(); } catch (e) {}
+
+          lines.push("isEnabled(): " + enabled);
+          lines.push("getApplicationCode(): " + appCode);
+          lines.push("getCurrentSdkState(): " + JSON.stringify(sdkState));
+          lines.push("push.getPermissionState(): " + permissionState);
+          lines.push("push.isSubscribed(): " + isSubscribed);
+          lines.push("serviceWorkerRegistrations: " + registrations.length);
+        } catch (e) {
+          lines.push("State read error: " + (e?.message || e));
+        }
+      }
+
+      setStatus(lines.join("\n"));
+    }
+
+    document.getElementById("initBtn").addEventListener("click", async () => {
+      try {
+        await enableSdk();
+      } catch (e) {
+        console.error(e);
+        setStatus("Enable failed: " + (e?.message || e));
+      }
+    });
+
+   
+	document.getElementById("linkBtn").addEventListener("click", async () => {
+	console.log(document.getElementById("contactId").value);		 
+      try {
+        await linkContact();
+      } catch (e) {
+        console.error(e);
+        setStatus("Contact link failed: " + (e?.message || e));
+      }
+    });
+
+    document.getElementById("subscribeBtn").addEventListener("click", async () => {
+      try {
+        await subscribePush();
+      } catch (e) {
+        console.error(e);
+        setStatus("Push subscribe failed: " + (e?.message || e));
+      }
+    });
+
+    document.getElementById("unsubscribeBtn").addEventListener("click", async () => {
+      try {
+        await unsubscribePush();
+      } catch (e) {
+        console.error(e);
+        setStatus("Push unsubscribe failed: " + (e?.message || e));
+      }
+    });
+
+    document.getElementById("stateBtn").addEventListener("click", async () => {
+      try {
+        await checkState();
+      } catch (e) {
+        console.error(e);
+        setStatus("Check failed: " + (e?.message || e));
+      }
+    });
+					 
+    
+					 
+   const event = { type: "custom", name: "Custom Event EC SDK", attributes: {"key1": "value1"} }
+					 
+   document.getElementById("sendCustomEvent").addEventListener("click", async () => {
+      try {
+        await window.EngagementCloud.event.track(event);
+      } catch (e) {
+        console.error(e);
+        setStatus("Check failed: " + (e?.message || e));
+      }
+    });
+
+    window.addEventListener("load", async () => {
+      try {
+        await checkState();
+      } catch (e) {
+        console.error(e);
+        setStatus("Loader error: " + (e?.message || e));
+      }
+    });
+  </script>
+</body>
+</html>
