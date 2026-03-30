@@ -259,6 +259,17 @@
       setStatus(lines.join("\n"));
     }
 
+    document.getElementById("appCode").addEventListener("change", async (e) => {
+      try {
+        await ensureSdkLoaded();
+        await window.EngagementCloud.setup.changeApplicationCode(e.target.value);
+        setStatus("Application code changed to: " + e.target.value);
+      } catch (err) {
+        console.error(err);
+        setStatus("changeApplicationCode failed: " + (err?.message || err));
+      }
+    });
+
     document.getElementById("initBtn").addEventListener("click", async () => {
       try {
         await enableSdk();
