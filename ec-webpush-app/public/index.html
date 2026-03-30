@@ -262,11 +262,19 @@
     document.getElementById("appCode").addEventListener("change", async (e) => {
       try {
         await ensureSdkLoaded();
+        await window.EngagementCloud.setup.disable();
         await window.EngagementCloud.setup.changeApplicationCode(e.target.value);
-        setStatus("Application code changed to: " + e.target.value);
+        await window.EngagementCloud.setup.enable(
+          buildConfig(),
+          async () => {
+            const contactId = getContactIdentifier();
+            return contactId ? { contactFieldValue: contactId } : null;
+          }
+        );
+        setStatus("Application code changed to: " + e.target.value + "\nSDK re-enabled.");
       } catch (err) {
         console.error(err);
-        setStatus("changeApplicationCode failed: " + (err?.message || err));
+        setStatus("App code switch failed: " + (err?.message || err));
       }
     });
 
