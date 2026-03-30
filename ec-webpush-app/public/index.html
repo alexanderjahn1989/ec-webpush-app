@@ -37,7 +37,7 @@
       cursor: pointer;
     }
 
-    input {
+    input, select {
       width: 100%;
       max-width: 420px;
       padding: 10px;
@@ -59,6 +59,14 @@
 
     <div class="card">
       <div class="row">
+        <label for="appCode"><strong>App Code</strong></label><br />
+        <select id="appCode">
+          <option value="EMSBC-5053F">EMSBC-5053F</option>
+          <option value="INS-P01-APP-DUUZY">INS-P01-APP-DUUZY</option>
+        </select>
+      </div>
+
+      <div class="row">
         <label for="contactId"><strong>Contact Identifier</strong></label><br />
         <input id="contactId" type="text" value="alexander.jahn01@sap.com" />
       </div>
@@ -77,8 +85,16 @@
   </div>
 
   <script>
-    const APPLICATION_CODE = "EMSBC-5053F";
-    const VAPID_PUBLIC_KEY = "BNkQa_BdS4pLqRwGO4a8kx9D_7_d-S4aoUEuqnUGGudgXBxaU1jKUXfnhSw7QveJ76peHGm_-3h0naBQXjOt6JE";
+    const APP_CONFIGS = {
+      "EMSBC-5053F": {
+        applicationCode: "EMSBC-5053F",
+        vapidPublicKey: "BNkQa_BdS4pLqRwGO4a8kx9D_7_d-S4aoUEuqnUGGudgXBxaU1jKUXfnhSw7QveJ76peHGm_-3h0naBQXjOt6JE"
+      },
+      "INS-P01-APP-DUUZY": {
+        applicationCode: "INS-P01-APP-DUUZY",
+        vapidPublicKey: "BPdO9gORPmKvRIE7Nk6Zz3_JuK1HNLINobOcyznoLnuNIaCHYeQLI0jBpd5Ub87ORDV7y8dkWaBthi3OoWbZtrQ"
+      }
+    };
     const SERVICE_WORKER_PATH = "/service-worker.js";
     const SERVICE_WORKER_SCOPE = "/";
 	  
@@ -105,10 +121,12 @@
     }
 
     function buildConfig() {
+      const selectedCode = document.getElementById("appCode").value;
+      const { applicationCode, vapidPublicKey } = APP_CONFIGS[selectedCode];
       return {
-        applicationCode: APPLICATION_CODE,
+        applicationCode,
         serviceWorkerOptions: {
-          applicationServerKey: VAPID_PUBLIC_KEY,
+          applicationServerKey: vapidPublicKey,
           serviceWorkerPath: SERVICE_WORKER_PATH,
           serviceWorkerScope: SERVICE_WORKER_SCOPE
         }
